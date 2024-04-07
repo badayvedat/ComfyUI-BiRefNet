@@ -14,6 +14,7 @@ from PIL import Image
 import torch
 import torch.nn as nn
 from torchvision import transforms
+from torchvision.transforms.functional import InterpolationMode, resize as torch_resize
 
 from loguru import logger
 from folder_paths import models_dir
@@ -31,8 +32,12 @@ class BiRefNet_img_processor:
         ])
 
     def __call__(self, _image: np.array):
-        _image_rs = cv2.resize(_image, (self.config.size, self.config.size), interpolation=cv2.INTER_LINEAR)
-        _image_rs = Image.fromarray(np.uint8(_image_rs*255)).convert('RGB')
+        _image_rs = torch_resize(
+            _image.permute(2, 0, 1),
+            size=(self.config.size, self.config.size),
+            interpolation=InterpolationMode.BILINEAR
+        ).permute(1, 2, 0)
+        _image_rs = Image.fromarray(np.uint8(_image_rs.cpu() *255)).convert('RGB')
         image = self.transform_image(_image_rs)
         return image
 
@@ -100,7 +105,7 @@ class BiRefNet_node:
             weight_path = os.path.join(models_dir, "BiRefNet", "BiRefNet-ep480.pth")
             self.load(weight_path, device=device)
         
-        image = image.squeeze().numpy()
+        image = image.squeeze()
         img = self.processor(image)
         inputs = img[None, ...].to(device)
         logger.debug(f"{inputs.shape}")
